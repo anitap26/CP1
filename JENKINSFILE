@@ -53,7 +53,7 @@ pipeline {
                             sleep 60
 
                             # Lanza Wiremock
-                            java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock/mappings &
+                            java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
                             sleep 60
 
                             # Ejecutar las pruebas REST
