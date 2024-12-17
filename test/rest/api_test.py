@@ -45,7 +45,7 @@ def test_api_multiply(self):
             response.read().decode(), "15", "ERROR MULTIPLY"
         )
 
-    def test_api_divide(self):
+def test_api_divide(self):
         url = f"{BASE_URL}/calc/divide/10/2"
         response = urlopen(url, timeout=DEFAULT_TIMEOUT)
         self.assertEqual(
@@ -55,7 +55,7 @@ def test_api_multiply(self):
             response.read().decode(), "5.0", "ERROR DIVIDE"
         )
 
-    def test_api_divide_by_zero(self):
+ def test_api_divide_by_zero(self):
         url = f"{BASE_URL}/calc/divide/10/0"
         response = urlopen(url, timeout=DEFAULT_TIMEOUT)
         self.assertEqual(
