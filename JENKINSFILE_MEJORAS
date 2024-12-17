@@ -47,11 +47,11 @@ pipeline {
                 # Lanza el servidor Flask
                 export FLASK_APP=$WORKSPACE/app/api.py
                 python3 -m flask run &
-                sleep 60
+                
 
                 # Lanza Wiremock
                 java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
-                sleep 60
+                
 
                 # Ejecutar las pruebas REST
                 PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
