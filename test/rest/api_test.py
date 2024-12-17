@@ -2,6 +2,7 @@ import http.client
 import os
 import unittest
 from urllib.request import urlopen
+import urllib.error
 
 import pytest
 
@@ -60,7 +61,7 @@ class TestApi(unittest.TestCase):
 
         try:
             response = urlopen(url, timeout=DEFAULT_TIMEOUT)
-        except urlopen.error.HTTPError as e:
+        except urllib.error.HTTPError as e:
             self.assertEqual(
             response.status, http.client.NOT_ACCEPTABLE, f"Error en la petición API a {url}"
         )
