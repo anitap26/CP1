@@ -93,8 +93,12 @@ pipeline {
                     // Detener los procesos de Flask y Wiremock
                     echo "Deteniendo Flask y Wiremock..."
                     sh '''
-                    kill $FLASK_PID
-                    kill $WIREMOCK_PID
+                    if [ -n "$FLASK_PID" ]; then
+                        kill $FLASK_PID || true
+                    fi
+                    if [ -n "$WIREMOCK_PID" ]; then
+                        kill $WIREMOCK_PID || true
+                    fi
                     '''
                 }
             }
