@@ -10,9 +10,11 @@ pipeline {
 
         stage("Get Code") {
             steps {
-                git "https://github.com/anitap26/CP1.git"
-            }
+               script {
+            git branch: 'feature_fix_racecond', url: 'https://github.com/anitap26/CP1.git'
         }
+    }
+}
 
         stage("Comprobar dirección") {
             steps {
