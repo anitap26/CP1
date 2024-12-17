@@ -31,3 +31,15 @@ def substract(op_1, op_2):
         return ("{}".format(CALCULATOR.substract(num_1, num_2)), http.client.OK, HEADERS)
     except TypeError as e:
         return (str(e), http.client.BAD_REQUEST, HEADERS)
+
+@api_application.route("/calc/multiply/<op_1>/<op_2>", methods=["GET"])
+def multiply(op_1, op_2):
+    try:
+        num_1, num_2 = util.convert_to_number(op_1), util.convert_to_number(op_2)
+        result = CALCULATOR.multiply(num_1, num_2)
+        return ("{}".format(result), http.client.OK, HEADERS)
+    
+    except TypeError as e:
+        # Si ocurre un error de tipo, devolver un error 400 (Bad Request)
+        return (str(e), http.client.BAD_REQUEST, HEADERS)
+
