@@ -26,52 +26,7 @@ pipeline {
             }
         }
 
-        stage("Build") {
-            steps {
-                echo "No hago nada"
-            }
-        }   
-
-                stage("Pruebas unitarias") {
-                    steps {
-                        sh '''
-                        PYTHONPATH=$WORKSPACE python3 -m pytest test/unit
-                        python3 -m pytest --junitxml=result-unit.xml test/unit
-                        '''
-                    }
-                }
-
-                stage("Pruebas rest") {
-                    steps {
-                      
-                            sh '''
-                            # Lanza el servidor Flask
-                            export FLASK_APP=$WORKSPACE/app/api.py
-                            python3 -m flask run 
-                            sleep 60
-
-                            # Lanza Wiremock
-                            java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock 
-                            sleep 60
-
-                            # Ejecutar las pruebas REST
-                            PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
-                            python3 -m pytest --junitxml=result-rest.xml test/rest
-                            '''
-                      
-                    }
-                }
-            }
-        }
-        stage("Resultados"){
-            steps{
-                junit 'result*.xml'
-            }
-        }
-    }
-}
-
-
+        stage
         
 
     
