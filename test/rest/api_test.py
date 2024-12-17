@@ -63,10 +63,11 @@ class TestApi(unittest.TestCase):
             response = urlopen(url, timeout=DEFAULT_TIMEOUT)
         except urllib.error.HTTPError as e:
             self.assertEqual(
-            response.status, http.client.NOT_ACCEPTABLE, f"Error en la petición API a {url}"
+            e.code, http.client.NOT_ACCEPTABLE, f"Error en la petición API a {url}"
         )
+            error_message = e.read().decode()  # Lee el cuerpo del mensaje de error
             self.assertEqual(
-            response.read().decode(), "Cannot divide by zero", "ERROR DIVIDE BY ZERO"
+            error_message, "Cannot divide by zero", "ERROR DIVIDE BY ZERO"
         )
 
 if __name__ == "__main__":  # pragma: no cover
