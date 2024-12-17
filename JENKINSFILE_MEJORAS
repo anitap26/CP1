@@ -49,16 +49,42 @@ pipeline {
                 # Lanza el servidor Flask
                 export FLASK_APP=$WORKSPACE/app/api.py
                 python3 -m flask run &
+                FLASK_PID=$!
+                sleep 20 #Esperamos 20 segundos para que Flask esté listo
                 
-
+                #Verificación del servicio Flask listo
+                sh '''
+                while ! nc -z localhost 5000; do
+                    echo "Esperando que Flask se inicie..."
+                    sleep 1
+                done
+                echo "Flask está listo en el puerto 5000"
+                '''
                 # Lanza Wiremock
                 java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
-                
+                WIREMOCK_PID=$!
+                sleep 20 #Esperamos 20 segundos para que Wiremock esté listo
+
+                # Verificamos que Wiremock esté disponible en el puerto 9090
+                sh '''
+                while ! nc -z localhost 9090; do
+                        echo "Esperando que Wiremock se inicie..."
+                        sleep 1
+                done
+                echo "Wiremock está listo en el puerto 9090"
+                '''
 
                 # Ejecutar las pruebas REST
                 PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
                 python3 -m pytest --junitxml=result-rest.xml test/rest
                 '''
+
+                # Ejecutadas las pruebas, detenemos los procesos
+                sh '''
+                kill $FLASK_PID
+                kill $WIREMOCK_PID
+                '''
+
             }
         }
 
