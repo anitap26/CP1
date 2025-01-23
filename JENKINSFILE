@@ -8,22 +8,12 @@ pipeline {
             }
         }
         
-        stage("Instalar Dependencias") {
-            steps {
-                sh '''
-                # Actualizar pytest-cov
-                /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m pip install --upgrade pytest-cov
-                '''
-            }
-        }
-
         stage("Pruebas unitarias") {
             steps {
                 sh '''
                 /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m pytest \
                 --cov=app \
                 --cov-report=xml:coverage.xml \
-                --cov-omit=*/__init__.py,*/api.py \
                 --junitxml=result-unit.xml test/unit
                 '''
                 junit "result-unit.xml"
@@ -37,17 +27,11 @@ pipeline {
                     # Lanza el servidor Flask
                     export FLASK_APP=$WORKSPACE/app/api.py
                     python3 -m flask run &
-                    until curl --output /dev/null --silent --head --fail http://localhost:5000; do
-                        echo "Esperando a que Flask se inicie..."
-                        sleep 5
-                    done
+                    sleep 30
 
                     # Lanza Wiremock
                     java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
-                    until curl --output /dev/null --silent --head --fail http://localhost:9090; do
-                        echo "Esperando a que Wiremock se inicie..."
-                        sleep 5
-                    done
+                    sleep 60
 
                     # Ejecutar las pruebas REST
                     PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
