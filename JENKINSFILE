@@ -2,72 +2,92 @@ pipeline {
     agent any
 
     stages {
-        stage("HELLO") {
-            steps {
-                echo "Hola, este es mi primer pipeline"
-            }
-        }
-
         stage("Get Code") {
             steps {
                 git "https://github.com/anitap26/CP1.git"
             }
         }
-
-        stage("Comprobar dirección") {
+        
+        stage("Pruebas unitarias") {
             steps {
-                sh "ls -l"
+                sh '''
+                /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m pytest \
+                --cov=app \
+                --cov-report=xml:coverage.xml \
+                --cov-omit="*/__init__.py,*/api.py" \
+                --junitxml=result-unit.xml test/unit
+                '''
+                junit "result-unit.xml"
             }
         }
-
-        stage("Comprobar espacio de trabajo") {
+        
+        stage("Pruebas rest") {
             steps {
-                echo "Mi espacio de trabajo es ${env.WORKSPACE}"
-            }
-        }
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    sh '''
+                    # Lanza el servidor Flask
+                    export FLASK_APP=$WORKSPACE/app/api.py
+                    python3 -m flask run &
+                    sleep 30
 
-        stage("Build") {
-            steps {
-                echo "No hago nada"
-            }
-        }
+                    # Lanza Wiremock
+                    java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
+                    sleep 60
 
-        stage("Pruebas paralelo") {
-            parallel {
-                stage("Pruebas unitarias") {
-                    steps {
-                        sh '''
-                        PYTHONPATH=$WORKSPACE python3 -m pytest test/unit
-                        python3 -m pytest --junitxml=result-unit.xml test/unit
-                        '''
-                    }
-                }
-
-                stage("Pruebas rest") {
-                    steps {
-                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                            sh '''
-                            # Lanza el servidor Flask
-                            export FLASK_APP=$WORKSPACE/app/api.py
-                            python3 -m flask run &
-                            sleep 60
-
-                            # Lanza Wiremock
-                            java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
-                            sleep 60
-
-                            # Ejecutar las pruebas REST
-                            PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
-                            python3 -m pytest --junitxml=result-rest.xml test/rest
-                            '''
-                        }
-                    }
+                    # Ejecutar las pruebas REST
+                    PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
+                    python3 -m pytest --junitxml=result-rest.xml test/rest
+                    '''
                 }
             }
         }
-        stage("Resultados"){
-            steps{
-                junit 'result*.xml'
+        
+        stage("Coverage") {
+            steps {
+                catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
+                    cobertura coberturaReportFile: "coverage.xml", conditionalCoverageTargets: "90,80,0", lineCoverageTargets: "95,85,0"
+                }
+            }
+        }
+
+        stage("Static") {
+            steps {
+                sh '''
+                # Análisis estático con flake8
+                /Library/Frameworks/Python.framework/Versions/3.12/bin/flake8 --format=pylint --exit-zero app > flake8.out
+                '''
+                recordIssues tools: [flake8(name: "Flake8", pattern: "flake8.out")], 
+                             qualityGates: [[threshold: 8, type: "TOTAL", unstable: true], [threshold: 10, type: "TOTAL", unstable: false]]
+            }
+        }
+        
+        stage("Security") {
+            steps {
+                sh '''
+                # Escaneo de seguridad con Bandit
+                export PATH=$PATH:/Library/Frameworks/Python.framework/Versions/3.12/bin
+                bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {severity}: {msg}"
+                '''
+                recordIssues tools: [pyLint(name: "Bandit", pattern: "bandit.out")], 
+                             qualityGates: [[threshold: 2, type: "TOTAL", unstable: true], [threshold: 4, type: "TOTAL"]]
+            }
+        }
+        
+        stage("Performance") {
+            steps {
+                catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
+                    sh '''
+                    # Configuración para pruebas de rendimiento con JMeter
+                    export PATH=$PATH:/Users/anamunozallue/Downloads/apache-jmeter-5.6.3/bin
+                    export FLASK_APP=$WORKSPACE/app/api.py
+                    
+                    python3 -m flask run --port=5001 &
+                    sleep 30 
+                    
+                    jmeter -n -t /Users/anamunozallue/CP1/test/jmeter/Performance.jmx -f -l performance.jtl
+                    '''
+                    perfReport sourceDataFiles: "performance.jtl"
+                }
             }
         }
     }
