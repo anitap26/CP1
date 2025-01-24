@@ -7,19 +7,19 @@ pipeline {
                 git "https://github.com/anitap26/CP1.git"
             }
         }
-        
         stage("Pruebas unitarias") {
-         steps {
-        sh '''
-        PYTHONPATH=$WORKSPACE python3 -m coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
-        python3 -m coverage xml
-        python3 -m pytest --junitxml=result-unit.xml test/unit
-        '''
-}
-}
-junit "result-unit.xml"
+            steps {
+            sh '''
+            PYTHONPATH=$WORKSPACE python3 -m coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
+            python3 -m coverage xml
+            python3 -m pytest --junitxml=result-unit.xml test/unit
+            '''
+                
             }
         }
+        junit "result-unit.xml"
+        
+    }
         
         stage("Pruebas rest") {
             steps {
