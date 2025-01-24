@@ -9,15 +9,15 @@ pipeline {
         }
         
         stage("Pruebas unitarias") {
-            steps {
-                sh '''
-                /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 -m pytest \
-                --cov=app \
-                --cov-report=xml:coverage.xml \
-                --ignore=app/__init__.py,app/api.py \
-                --junitxml=result-unit.xml test/unit
-                '''
-                junit "result-unit.xml"
+         steps {
+        sh '''
+        PYTHONPATH=$WORKSPACE python3 -m coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
+        python3 -m coverage xml
+        python3 -m pytest --junitxml=result-unit.xml test/unit
+        '''
+}
+}
+junit "result-unit.xml"
             }
         }
         
