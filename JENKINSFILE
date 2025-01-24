@@ -7,41 +7,50 @@ pipeline {
                 git "https://github.com/anitap26/CP1.git"
             }
         }
+
         stage("Pruebas unitarias") {
             steps {
-            sh '''
-            PYTHONPATH=$WORKSPACE python3 -m coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
-            python3 -m coverage xml
-            python3 -m pytest --junitxml=result-unit.xml test/unit
-            '''
-                
+                sh '''
+                PYTHONPATH=$WORKSPACE python3 -m coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
+                python3 -m coverage xml
+                python3 -m pytest --junitxml=result-unit.xml test/unit
+                '''
             }
         }
-        junit "result-unit.xml"
-        
-    }
-        
-        stage("Pruebas rest") {
+
+        post {
+            always {
+                junit "result-unit.xml"
+            }
+        }
+
+        stage("Pruebas REST") {
             steps {
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     sh '''
                     # Lanza el servidor Flask
                     export FLASK_APP=$WORKSPACE/app/api.py
                     python3 -m flask run &
+                    FLASK_PID=$!
                     sleep 30
 
                     # Lanza Wiremock
                     java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
+                    WIREMOCK_PID=$!
                     sleep 60
 
                     # Ejecutar las pruebas REST
                     PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
                     python3 -m pytest --junitxml=result-rest.xml test/rest
+
+                    # Finaliza los procesos en segundo plano
+                    kill $FLASK_PID
+                    kill $WIREMOCK_PID
                     '''
                 }
             }
         }
-        
+
         stage("Coverage") {
             steps {
                 catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
@@ -60,7 +69,7 @@ pipeline {
                              qualityGates: [[threshold: 8, type: "TOTAL", unstable: true], [threshold: 10, type: "TOTAL", unstable: false]]
             }
         }
-        
+
         stage("Security") {
             steps {
                 sh '''
@@ -72,7 +81,7 @@ pipeline {
                              qualityGates: [[threshold: 2, type: "TOTAL", unstable: true], [threshold: 4, type: "TOTAL"]]
             }
         }
-        
+
         stage("Performance") {
             steps {
                 catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
@@ -82,12 +91,17 @@ pipeline {
                     export FLASK_APP=$WORKSPACE/app/api.py
                     
                     python3 -m flask run --port=5001 &
+                    FLASK_PID=$!
                     sleep 30 
                     
                     jmeter -n -t /Users/anamunozallue/CP1/test/jmeter/Performance.jmx -f -l performance.jtl
+
+                    # Finaliza el proceso de Flask
+                    kill $FLASK_PID
                     '''
                     perfReport sourceDataFiles: "performance.jtl"
                 }
             }
         }
     }
+}
