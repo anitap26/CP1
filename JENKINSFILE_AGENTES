@@ -1,28 +1,24 @@
 pipeline {
-    agent none // Los agentes se asignan por etapas.
+    agent none // Los agentes se asignan por etapas
 
     stages {
-        stage("Preparación y Configuración") {
-            agent { label "principal" } // Usar un agente principal para esta etapa.
+        stage("Preparación del entorno") {
+            agent { label "principal" } // Todas las preparaciones iniciales ocurren aquí
             steps {
-                sh """
-                whoami
-                hostname
-                echo ${WORKSPACE}
-                """
+                // Descargar código y preparar stash
                 git "https://github.com/anitap26/CP1.git"
-                stash includes: '**', name: 'source-code' // Stash el código fuente para usarlo en otras etapas.
+                stash includes: '**', name: 'source-code'
             }
         }
 
-        stage("Pruebas Unitarias y REST") {
+        stage("Pruebas y Análisis") {
             parallel {
+                // PRUEBAS UNITARIAS
                 stage("Pruebas Unitarias") {
                     agent { label "principal" }
                     steps {
                         unstash 'source-code'
                         sh '''
-                        # Ejecutar pruebas unitarias
                         PYTHONPATH=$WORKSPACE /opt/homebrew/bin/python3 -m coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
                         /opt/homebrew/bin/python3 -m coverage xml
                         /opt/homebrew/bin/python3 -m pytest --junitxml=result-unit.xml test/unit
@@ -31,20 +27,22 @@ pipeline {
                     }
                 }
 
+                // PRUEBAS REST
                 stage("Pruebas REST") {
                     agent { label "principal" }
                     steps {
                         unstash 'source-code'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             sh '''
-                            # Lanzar servidor Flask y Wiremock
+                            # Lanzar servidor Flask
                             export FLASK_APP=$WORKSPACE/app/api.py
                             python3 -m flask run &
                             sleep 30
 
+                            # Lanzar Wiremock
                             java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
                             sleep 30
-                            
+
                             # Ejecutar pruebas REST
                             PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
                             python3 -m pytest --junitxml=result-rest.xml test/rest
@@ -53,40 +51,22 @@ pipeline {
                         }
                     }
                 }
-            }
-        }
 
-        stage("Análisis Estático y Cobertura") {
-            parallel {
-                stage("Static Analysis") {
+                // ANÁLISIS ESTÁTICO
+                stage("Análisis Estático") {
                     agent { label "agente2" }
                     steps {
                         unstash 'source-code'
                         sh '''
                         /Library/Frameworks/Python.framework/Versions/3.12/bin/flake8 --format=pylint --exit-zero app > flake8.out
                         '''
-                        recordIssues tools: [flake8(name: "Flake8", pattern: "flake8.out")], 
+                        recordIssues tools: [flake8(name: "Flake8", pattern: "flake8.out")],
                                      qualityGates: [[threshold: 8, type: "TOTAL", unstable: true], [threshold: 10, type: "TOTAL", unstable: false]]
                     }
                 }
 
-                stage("Análisis de Cobertura") {
-                    agent { label "agente2" }
-                    steps {
-                        unstash 'source-code'
-                        catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
-                            cobertura coberturaReportFile: "coverage.xml", 
-                                     conditionalCoverageTargets: "90,80,0", 
-                                     lineCoverageTargets: "95,85,0"
-                        }
-                    }
-                }
-            }
-        }
-
-        stage("Seguridad y Rendimiento") {
-            parallel {
-                stage("Security Analysis") {
+                // ANÁLISIS DE SEGURIDAD
+                stage("Análisis de Seguridad") {
                     agent { label "agente3" }
                     steps {
                         unstash 'source-code'
@@ -94,29 +74,42 @@ pipeline {
                         export PATH=$PATH:/Library/Frameworks/Python.framework/Versions/3.12/bin
                         bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {severity}: {msg}"
                         '''
-                        recordIssues tools: [pyLint(name: "Bandit", pattern: "bandit.out")], 
+                        recordIssues tools: [pyLint(name: "Bandit", pattern: "bandit.out")],
                                      qualityGates: [[threshold: 2, type: "TOTAL", unstable: true], [threshold: 4, type: "TOTAL"]]
                     }
                 }
 
-                stage("Performance Testing") {
+                // PRUEBAS DE RENDIMIENTO
+                stage("Pruebas de Rendimiento") {
                     agent { label "agente3" }
                     steps {
                         unstash 'source-code'
                         catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
                             sh '''
-                            # Lanzar Flask y ejecutar pruebas de rendimiento con JMeter
-                            export PATH=$PATH:/Users/anamunozallue/Downloads/apache-jmeter-5.6.3/bin
+                            # Lanzar servidor Flask
                             export FLASK_APP=$WORKSPACE/app/api.py
-
                             python3 -m flask run --port=5001 &
-                            sleep 30 
+                            sleep 30
 
+                            # Ejecutar JMeter
+                            export PATH=$PATH:/Users/anamunozallue/Downloads/apache-jmeter-5.6.3/bin
                             jmeter -n -t /Users/anamunozallue/CP1/test/jmeter/Performance.jmx -f -l performance.jtl
                             '''
                             perfReport sourceDataFiles: "performance.jtl"
                         }
                     }
+                }
+            }
+        }
+
+        stage("Análisis de Cobertura") {
+            agent { label "agente2" }
+            steps {
+                unstash 'source-code'
+                catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
+                    cobertura coberturaReportFile: "coverage.xml", 
+                              conditionalCoverageTargets: "90,80,0", 
+                              lineCoverageTargets: "95,85,0"
                 }
             }
         }
