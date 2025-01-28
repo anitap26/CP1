@@ -1,82 +1,67 @@
 pipeline {
-    agent none // Los agentes serán asignados por etapas.
+    agent none // Los agentes se asignan por etapas.
 
     stages {
-        stage("Preparación y arranque de pruebas") {
-            stages {
-                stage("Get Code") {
+        stage("Preparación y Configuración") {
+            agent { label "principal" } // Usar un agente principal para esta etapa.
+            steps {
+                sh """
+                whoami
+                hostname
+                echo ${WORKSPACE}
+                """
+                git "https://github.com/anitap26/CP1.git"
+                stash includes: '**', name: 'source-code' // Stash el código fuente para usarlo en otras etapas.
+            }
+        }
+
+        stage("Pruebas Unitarias y REST") {
+            parallel {
+                stage("Pruebas Unitarias") {
                     agent { label "principal" }
                     steps {
-                        sh """
-                        whoami
-                        hostname
-                        echo ${WORKSPACE}
-                        """
-                        git "https://github.com/anitap26/CP1.git"
-                        stash includes: '**', name: 'source-code' // Stash el código
+                        unstash 'source-code'
+                        sh '''
+                        # Ejecutar pruebas unitarias
+                        PYTHONPATH=$WORKSPACE /opt/homebrew/bin/python3 -m coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
+                        /opt/homebrew/bin/python3 -m coverage xml
+                        /opt/homebrew/bin/python3 -m pytest --junitxml=result-unit.xml test/unit
+                        '''
+                        junit "result-unit.xml"
                     }
                 }
 
-                stage("Pruebas") {
-                    parallel {
-                        stage("Pruebas Unitarias") {
-                            agent { label "principal" }
-                            steps {
-                                unstash 'source-code' // Recupera el código
-                                sh """
-                                whoami
-                                hostname
-                                echo ${WORKSPACE}
-                                """
-                                sh '''
-                                # Ejecutar pruebas unitarias
-                                PYTHONPATH=$WORKSPACE /opt/homebrew/bin/python3 -m coverage run --branch --source=app --omit=app/__init__.py,app/api.py -m pytest test/unit
-                                /opt/homebrew/bin/python3 -m coverage xml
-                                /opt/homebrew/bin/python3 -m pytest --junitxml=result-unit.xml test/unit
-                                '''
-                                junit "result-unit.xml"
-                            }
-                        }
+                stage("Pruebas REST") {
+                    agent { label "principal" }
+                    steps {
+                        unstash 'source-code'
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            sh '''
+                            # Lanzar servidor Flask y Wiremock
+                            export FLASK_APP=$WORKSPACE/app/api.py
+                            python3 -m flask run &
+                            sleep 30
 
-                        stage("Pruebas REST") {
-                            agent { label "principal" }
-                            steps {
-                                unstash 'source-code' // Recupera el código
-                                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                                    sh '''
-                                    # Lanza el servidor Flask
-                                    export FLASK_APP=$WORKSPACE/app/api.py
-                                    python3 -m flask run &
-                                    sleep 30
-
-                                    # Lanza Wiremock
-                                    java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
-                                    sleep 30
-                                    
-                                    # Ejecutar pruebas REST
-                                    PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
-                                    python3 -m pytest --junitxml=result-rest.xml test/rest
-                                    '''
-                                    junit "result-rest.xml"
-                                }
-                            }
+                            java -jar /Users/anamunozallue/DESCARGAS/Wiremock/wiremock-standalone-3.10.0.jar --port 9090 --root-dir /Users/anamunozallue/DESCARGAS/Wiremock &
+                            sleep 30
+                            
+                            # Ejecutar pruebas REST
+                            PYTHONPATH=$WORKSPACE python3 -m pytest test/rest
+                            python3 -m pytest --junitxml=result-rest.xml test/rest
+                            '''
+                            junit "result-rest.xml"
                         }
                     }
                 }
             }
         }
 
-        stage("Pruebas Static y Cobertura") {
+        stage("Análisis Estático y Cobertura") {
             parallel {
                 stage("Static Analysis") {
                     agent { label "agente2" }
                     steps {
-                        unstash 'source-code' // Recupera el código
-                        sh """
-                        whoami
-                        hostname
-                        echo ${WORKSPACE}
-                        """
+                        unstash 'source-code'
                         sh '''
                         /Library/Frameworks/Python.framework/Versions/3.12/bin/flake8 --format=pylint --exit-zero app > flake8.out
                         '''
@@ -85,10 +70,10 @@ pipeline {
                     }
                 }
 
-                stage("Análisis de cobertura") {
+                stage("Análisis de Cobertura") {
                     agent { label "agente2" }
                     steps {
-                        unstash 'source-code' // Recupera el código
+                        unstash 'source-code'
                         catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
                             cobertura coberturaReportFile: "coverage.xml", 
                                      conditionalCoverageTargets: "90,80,0", 
@@ -104,12 +89,7 @@ pipeline {
                 stage("Security Analysis") {
                     agent { label "agente3" }
                     steps {
-                        unstash 'source-code' // Recupera el código
-                        sh """
-                        whoami
-                        hostname
-                        echo ${WORKSPACE}
-                        """
+                        unstash 'source-code'
                         sh '''
                         export PATH=$PATH:/Library/Frameworks/Python.framework/Versions/3.12/bin
                         bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}: [{test_id}] {severity}: {msg}"
@@ -122,12 +102,7 @@ pipeline {
                 stage("Performance Testing") {
                     agent { label "agente3" }
                     steps {
-                        unstash 'source-code' // Recupera el código
-                        sh """
-                        whoami
-                        hostname
-                        echo ${WORKSPACE}
-                        """
+                        unstash 'source-code'
                         catchError(buildResult: "UNSTABLE", stageResult: "FAILURE") {
                             sh '''
                             # Lanzar Flask y ejecutar pruebas de rendimiento con JMeter
