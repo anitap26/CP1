@@ -1,8 +1,6 @@
 import pytest
 import unittest
-
 from app.calc import Calculator
-
 
 @pytest.mark.unit
 class TestCalculate(unittest.TestCase):
@@ -24,6 +22,8 @@ class TestCalculate(unittest.TestCase):
     def test_divide_method_returns_correct_result(self):
         self.assertEqual(1, self.calc.divide(2, 2))
         self.assertEqual(1.5, self.calc.divide(3, 2))
+        # Test for division by zero (already covered by the next test)
+        self.assertRaises(TypeError, self.calc.divide, 2, 0)
         self.assertRaises(TypeError, self.calc.divide, "2", 2)
   
     def test_add_method_fails_with_nan_parameter(self):
@@ -64,6 +64,14 @@ class TestCalculate(unittest.TestCase):
         self.assertEqual(0, self.calc.substract(0, 0))
         self.assertEqual(0, self.calc.substract(0, 0))
         self.assertRaises(TypeError, self.calc.substract, "0", 0)
+
+    # Test for the check_types method being invoked (for each operation)
+    def test_check_types_called(self):
+        self.assertRaises(TypeError, self.calc.add, "string", 2)
+        self.assertRaises(TypeError, self.calc.subtract, "string", 2)
+        self.assertRaises(TypeError, self.calc.multiply, "string", 2)
+        self.assertRaises(TypeError, self.calc.divide, "string", 2)
+        self.assertRaises(TypeError, self.calc.power, "string", 2)
         
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
