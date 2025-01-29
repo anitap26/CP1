@@ -4,17 +4,10 @@ pipeline {
     stages {
         stage("Get Code") {
             steps {
-                git "https://github.com/anitap26/CP1.git"
+                git branch: 'feature_fix_coverage', url: 'https://github.com/anitap26/CP1.git'
             }
         }
-stage("Verificar rama") {
-            steps {
-                script {
-                    def branchName = sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-                    echo "El pipeline se está ejecutando en la rama: ${branchName}"
-                }
-            }
-        }
+
         stage("Pruebas unitarias") {
             steps {
                 sh '''
