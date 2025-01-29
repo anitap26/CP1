@@ -97,4 +97,13 @@ pipeline {
         }
         
     }
+    post {
+        always {
+            // Limpia el workspace al finalizar el pipeline
+            cleanWs()
+            
+        }
+        
+    }
 }
+
